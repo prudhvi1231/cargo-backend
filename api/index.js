@@ -4,6 +4,13 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
 const app = require("../server");
+
+
+const serverless = require("serverless-http");
+const app = require("../server");  // Import exported Express app
+
+module.exports = serverless(app);
+
 module.exports = (req, res) => app(req, res);
 
 // MongoDB connection
