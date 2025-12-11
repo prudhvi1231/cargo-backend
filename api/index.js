@@ -1,34 +1,4 @@
-const express = require("express");
 const serverless = require("serverless-http");
-const cors = require("cors");
-const mongoose = require("mongoose");
-require("dotenv").config();
 const app = require("../server");
 
-
-const serverless = require("serverless-http");
-const app = require("../server");  // Import exported Express app
-
-module.exports = serverless(app);
-
-module.exports = (req, res) => app(req, res);
-
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected (Vercel)"))
-  .catch((err) => console.log("MongoDB Error:", err));
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const routes = require("../routes"); // adjust if needed
-app.use("/api", routes);
-
-// Test Route
-app.get("/", (req, res) => {
-  res.send("Backend is running on Vercel!");
-});
-
-// Export as serverless function
 module.exports = serverless(app);
