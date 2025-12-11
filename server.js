@@ -124,6 +124,38 @@
 
 
 
+// require("dotenv").config();
+// const express = require("express");
+// const cors = require("cors");
+// const mongoose = require("mongoose");
+
+// const app = express();
+
+// app.use(cors());
+// app.use(express.json());
+
+// // Connect MongoDB once
+// mongoose
+//   .connect(process.env.MONGO_URL)
+//   .then(() => console.log("MongoDB Connected"))
+//   .catch(err => console.error("MongoDB Error:", err));
+
+// app.use("/api/dashboard", require("./routes/Cargo"));
+// app.use("/api/analytics", require("./routes/Cargo"));
+// app.use("/api/cargo-prediction", require("./routes/Cargo"));
+
+// app.get("/", (req, res) => {
+//   res.send("Cargo Analytics Backend Running...");
+// });
+
+// app.get("/api/health", (req, res) => {
+//   res.json({ ok: true, ts: Date.now() });
+// });
+
+// // ❌ DO NOT USE app.listen() on Vercel
+// module.exports = app;
+
+
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -134,23 +166,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Connect MongoDB once
-mongoose
-  .connect(process.env.MONGO_URL)
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.error("MongoDB Error:", err));
 
+// Routes
 app.use("/api/dashboard", require("./routes/Cargo"));
 app.use("/api/analytics", require("./routes/Cargo"));
 app.use("/api/cargo-prediction", require("./routes/Cargo"));
 
-app.get("/", (req, res) => {
-  res.send("Cargo Analytics Backend Running...");
-});
+app.get("/", (req, res) => res.send("Backend running ✔"));
+app.get("/api/health", (req, res) => res.json({ ok: true }));
 
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, ts: Date.now() });
-});
-
-// ❌ DO NOT USE app.listen() on Vercel
 module.exports = app;
