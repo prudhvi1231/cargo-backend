@@ -3,6 +3,8 @@ const serverless = require("serverless-http");
 const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
+const app = require("../server");
+module.exports = (req, res) => app(req, res);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI)
