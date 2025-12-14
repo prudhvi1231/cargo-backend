@@ -113,57 +113,203 @@ router.get("/heatmap", async (_, res) => {
 });
 
 /* ================= DAILY PATTERN ================= */
-router.get("/daily-pattern", async (_, res) => {
+// router.get("/daily-pattern", async (_, res) => {
+//   try {
+//     const raw = await CargoRecord.aggregate([
+//       { $addFields: { parsedDate: SAFE_DATE } },
+//       { $addFields: { day: { $dayOfWeek: "$parsedDate" } } },
+//       { $group: { _id: "$day", total: SAFE_WEIGHT } }
+//     ]);
+
+//     const labels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+//     const values = Array(7).fill(0);
+
+//     raw.forEach(r => {
+//       if (r._id) values[r._id - 1] = r.total;
+//     });
+
+//     res.json({ labels, values });
+//   } catch (e) {
+//     console.error("DAILY ERROR", e);
+//     res.status(500).json({ error: "daily-pattern failed" });
+//   }
+// });
+
+
+// router.get("/daily-pattern", async (_, res) => {
+//   try {
+//     const raw = await CargoRecord.aggregate([
+//       {
+//         $addFields: {
+//           parsedDate: {
+//             $dateFromString: {
+//               dateString: "$Accept Flight Date",
+//               format: "%d-%b-%y",
+//               onError: null,
+//               onNull: null
+//             }
+//           }
+//         }
+//       },
+//       { $match: { parsedDate: { $ne: null } } },   // ✅ IMPORTANT
+//       {
+//         $group: {
+//           _id: { $dayOfWeek: "$parsedDate" },
+//           total: SAFE_WEIGHT
+//         }
+//       }
+//     ]);
+
+//     const labels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+//     const values = Array(7).fill(0);
+
+//     raw.forEach(r => {
+//       if (r._id >= 1 && r._id <= 7) {
+//         values[r._id - 1] = +(r.total / 1000).toFixed(2); // return tons
+//       }
+//     });
+
+//     res.json({ labels, values });
+//   } catch (e) {
+//     console.error("DAILY ERROR", e);
+//     res.status(200).json({ labels: [], values: [] }); // never crash UI
+//   }
+// });
+
+
+router.get("/daily-pattern", async (req, res) => {
   try {
     const raw = await CargoRecord.aggregate([
-      { $addFields: { parsedDate: SAFE_DATE } },
-      { $addFields: { day: { $dayOfWeek: "$parsedDate" } } },
-      { $group: { _id: "$day", total: SAFE_WEIGHT } }
+      {
+        $addFields: {
+          parsedDate: {
+            $cond: [
+              { $and: [
+                { $ne: ["$Accept Flight Date", null] },
+                { $ne: ["$Accept Flight Date", ""] }
+              ]},
+              {
+                $dateFromString: {
+                  dateString: "$Accept Flight Date",
+                  onError: null,
+                  onNull: null
+                }
+              },
+              null
+            ]
+          }
+        }
+      },
+      { $match: { parsedDate: { $ne: null } } },
+      {
+        $group: {
+          _id: { $dayOfWeek: "$parsedDate" },
+          total: {
+            $sum: {
+              $convert: {
+                input: { $toString: "$Weight KG" },
+                to: "double",
+                onError: 0,
+                onNull: 0
+              }
+            }
+          }
+        }
+      }
     ]);
 
     const labels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
     const values = Array(7).fill(0);
 
     raw.forEach(r => {
-      if (r._id) values[r._id - 1] = r.total;
+      if (r._id) values[r._id - 1] = +(r.total / 1000).toFixed(2); // tons
     });
 
     res.json({ labels, values });
   } catch (e) {
-    console.error("DAILY ERROR", e);
-    res.status(500).json({ error: "daily-pattern failed" });
+    console.error("DAILY PATTERN ERROR", e);
+    res.json({ labels: [], values: [] }); // ❗ never crash frontend
   }
 });
 
 /* ================= YOY FULL ================= */
+// router.get("/yoy-full", async (req, res) => {
+//   try {
+//     const startYear = Number(req.query.startYear);
+//     const endYear = Number(req.query.endYear);
+
+//     const raw = await CargoRecord.aggregate([
+//       { $match: { "Year Text": { $gte: startYear, $lte: endYear } } },
+//       { $group: { _id: { year: "$Year Text", month: "$Month Short Text" }, total: SAFE_WEIGHT } }
+//     ]);
+
+//     const years = [];
+//     for (let y = startYear; y <= endYear; y++) years.push(y);
+
+//     const monthly = {
+//       years: years.map(y => ({
+//         year: y,
+//         values: MONTHS.map(m =>
+//           raw
+//             .filter(r => r._id.year === y && r._id.month === m)
+//             .reduce((a, b) => a + b.total, 0)
+//         )
+//       }))
+//     };
+
+//     res.json({ monthly });
+//   } catch (e) {
+//     console.error("YOY ERROR", e);
+//     res.status(500).json({ error: "yoy failed" });
+//   }
+// });
 router.get("/yoy-full", async (req, res) => {
   try {
     const startYear = Number(req.query.startYear);
     const endYear = Number(req.query.endYear);
 
+    if (!startYear || !endYear) {
+      return res.json({ years: [] });
+    }
+
     const raw = await CargoRecord.aggregate([
-      { $match: { "Year Text": { $gte: startYear, $lte: endYear } } },
-      { $group: { _id: { year: "$Year Text", month: "$Month Short Text" }, total: SAFE_WEIGHT } }
+      {
+        $addFields: {
+          yearNum: { $toInt: "$Year Text" }   // ✅ handles string years
+        }
+      },
+      {
+        $match: {
+          yearNum: { $gte: startYear, $lte: endYear }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: "$yearNum",
+            month: { $trim: { input: "$Month Short Text" } }
+          },
+          total: SAFE_WEIGHT
+        }
+      }
     ]);
 
     const years = [];
     for (let y = startYear; y <= endYear; y++) years.push(y);
 
-    const monthly = {
-      years: years.map(y => ({
-        year: y,
-        values: MONTHS.map(m =>
-          raw
-            .filter(r => r._id.year === y && r._id.month === m)
-            .reduce((a, b) => a + b.total, 0)
-        )
-      }))
-    };
+    const result = years.map(y => ({
+      year: y,
+      values: MONTHS.map(m =>
+        raw
+          .filter(r => r._id.year === y && r._id.month === m)
+          .reduce((a, b) => a + b.total, 0)
+      )
+    }));
 
-    res.json({ monthly });
+    res.json({ years: result });
   } catch (e) {
     console.error("YOY ERROR", e);
-    res.status(500).json({ error: "yoy failed" });
+    res.status(200).json({ years: [] });
   }
 });
 
@@ -228,6 +374,103 @@ router.get("/all", async (req, res) => {
     res.status(500).json([]);
   }
 });
+// router.get("/quarterly", async (req, res) => {
+//   try {
+//     const latest = await CargoRecord.findOne()
+//       .sort({ "Year Text": -1 })
+//       .select("Year Text")
+//       .lean();
+
+//     if (!latest) {
+//       return res.json({ year: null, quarterly: [0, 0, 0, 0] });
+//     }
+
+//     const year = latest["Year Text"];
+
+//     const raw = await CargoRecord.aggregate([
+//       { $match: { "Year Text": year } },
+//       {
+//         $group: {
+//           _id: "$Month Short Text",
+//           total: {
+//             $sum: {
+//               $convert: {
+//                 input: { $toString: "$Weight KG" },
+//                 to: "double",
+//                 onError: 0,
+//                 onNull: 0
+//               }
+//             }
+//           }
+//         }
+//       }
+//     ]);
+
+//     const Q = [0, 0, 0, 0];
+//     raw.forEach(r => {
+//       if (["Jan","Feb","Mar"].includes(r._id)) Q[0] += r.total;
+//       else if (["Apr","May","Jun"].includes(r._id)) Q[1] += r.total;
+//       else if (["Jul","Aug","Sep"].includes(r._id)) Q[2] += r.total;
+//       else if (["Oct","Nov","Dec"].includes(r._id)) Q[3] += r.total;
+//     });
+
+//     res.json({ year, quarterly: Q });
+//   } catch (e) {
+//     console.error("QUARTERLY ERROR", e);
+//     res.status(500).json({ year: null, quarterly: [0,0,0,0] });
+//   }
+// });
+// router.get("/quarterly", async (req, res) => {
+//   try {
+//     const latest = await CargoRecord.findOne()
+//       .sort({ "Year Text": -1 })
+//       .select("Year Text")
+//       .lean();
+
+//     if (!latest) {
+//       return res.json({ year: null, quarterly: [0, 0, 0, 0] });
+//     }
+
+//     const year = latest["Year Text"];
+
+//     const raw = await CargoRecord.aggregate([
+//       { $match: { "Year Text": year } },
+//       {
+//         $group: {
+//           _id: { $toLower: "$Month Short Text" },
+//           total: {
+//             $sum: {
+//               $convert: {
+//                 input: { $toString: "$Weight KG" },
+//                 to: "double",
+//                 onError: 0,
+//                 onNull: 0
+//               }
+//             }
+//           }
+//         }
+//       }
+//     ]);
+
+//     const Q = [0, 0, 0, 0];
+
+//     raw.forEach(r => {
+//       if (["jan","feb","mar"].includes(r._id)) Q[0] += r.total;
+//       else if (["apr","may","jun"].includes(r._id)) Q[1] += r.total;
+//       else if (["jul","aug","sep"].includes(r._id)) Q[2] += r.total;
+//       else if (["oct","nov","dec"].includes(r._id)) Q[3] += r.total;
+//     });
+
+//     res.json({ year, quarterly: Q });
+
+//   } catch (e) {
+//     console.error("QUARTERLY ERROR", e);
+//     res.status(500).json({ year: null, quarterly: [0, 0, 0, 0] });
+//   }
+// });
+
+
+
 router.get("/quarterly", async (req, res) => {
   try {
     const latest = await CargoRecord.findOne()
@@ -242,10 +485,27 @@ router.get("/quarterly", async (req, res) => {
     const year = latest["Year Text"];
 
     const raw = await CargoRecord.aggregate([
-      { $match: { "Year Text": year } },
+      {
+        $addFields: {
+          parsedDate: {
+            $dateFromString: {
+              dateString: "$Accept Flight Date",
+              format: "%d-%b-%y",
+              onError: null,
+              onNull: null
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          "Year Text": year,
+          parsedDate: { $ne: null }
+        }
+      },
       {
         $group: {
-          _id: "$Month Short Text",
+          _id: { $month: "$parsedDate" },
           total: {
             $sum: {
               $convert: {
@@ -261,17 +521,19 @@ router.get("/quarterly", async (req, res) => {
     ]);
 
     const Q = [0, 0, 0, 0];
+
     raw.forEach(r => {
-      if (["Jan","Feb","Mar"].includes(r._id)) Q[0] += r.total;
-      else if (["Apr","May","Jun"].includes(r._id)) Q[1] += r.total;
-      else if (["Jul","Aug","Sep"].includes(r._id)) Q[2] += r.total;
-      else if (["Oct","Nov","Dec"].includes(r._id)) Q[3] += r.total;
+      if ([1, 2, 3].includes(r._id)) Q[0] += r.total;
+      else if ([4, 5, 6].includes(r._id)) Q[1] += r.total;
+      else if ([7, 8, 9].includes(r._id)) Q[2] += r.total;
+      else if ([10, 11, 12].includes(r._id)) Q[3] += r.total;
     });
 
     res.json({ year, quarterly: Q });
+
   } catch (e) {
     console.error("QUARTERLY ERROR", e);
-    res.status(500).json({ year: null, quarterly: [0,0,0,0] });
+    res.status(500).json({ year: null, quarterly: [0, 0, 0, 0] });
   }
 });
 
@@ -365,5 +627,38 @@ router.get("/daily-pattern", async (req, res) => {
     res.status(500).json({ labels: [], values: [] });
   }
 });
+router.get("/growth-decline", async (req, res) => {
+  try {
+    const year = Number(req.query.year || 2025);
+
+    const data = await CargoRecord.aggregate([
+      { $addFields: { yearNum: { $toInt: "$Year Text" } } },
+      { $match: { yearNum: year } },
+      {
+        $group: {
+          _id: "$Station",
+          total: SAFE_WEIGHT
+        }
+      },
+      { $sort: { total: -1 } }
+    ]);
+
+    const up = data.slice(0, 5).map(d => ({
+      route: d._id,
+      value: d.total
+    }));
+
+    const down = data.slice(-5).map(d => ({
+      route: d._id,
+      value: -d.total
+    }));
+
+    res.json({ up, down });
+  } catch (e) {
+    console.error("GROWTH ERROR", e);
+    res.json({ up: [], down: [] });
+  }
+});
+
 
 module.exports = router;

@@ -1,5 +1,6 @@
 
 
+
 // require("dotenv").config();
 // const express = require("express");
 // const cors = require("cors");
@@ -7,6 +8,7 @@
 
 // const app = express();
 
+// /* ---------- MIDDLEWARE ---------- */
 // app.use(express.json());
 
 // app.use(cors({
@@ -18,23 +20,29 @@
 //   credentials: true
 // }));
 
-// // health
-// app.get("/health", (req, res) => {
-//   res.json({ ok: true });
-// });
+// /* ---------- DB (IMPORTANT: cache connection) ---------- */
+// let isConnected = false;
 
-// // db
-// mongoose.connect(process.env.MONGO_URL)
-//   .then(() => console.log("MongoDB Connected"))
-//   .catch(err => console.error("Mongo Error", err));
+// async function connectDB() {
+//   if (isConnected) return;
+//   await mongoose.connect(process.env.MONGO_URL);
+//   isConnected = true;
+//   console.log("MongoDB Connected");
+// }
 
-// // 🔥 ROUTES (MAKE SURE FILE NAME MATCHES)
+// /* ---------- ROUTES ---------- */
 // const cargoRoutes = require("../routes/Cargo");
+
+// app.use(async (req, res, next) => {
+//   await connectDB();
+//   next();
+// });
 
 // app.use("/api/dashboard", cargoRoutes);
 // app.use("/api/analytics", cargoRoutes);
 // app.use("/api/cargo-prediction", cargoRoutes);
 
+// /* ---------- EXPORT HANDLER ---------- */
 // module.exports = app;
 
 
@@ -57,27 +65,58 @@ app.use(cors({
   credentials: true
 }));
 
-/* ---------- DB (IMPORTANT: cache connection) ---------- */
-let isConnected = false;
+/* ---------- DB CONNECTION (VERCEL SAFE) ---------- */
+let cached = global.mongoose;
+
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
 
 async function connectDB() {
-  if (isConnected) return;
-  await mongoose.connect(process.env.MONGO_URL);
-  isConnected = true;
-  console.log("MongoDB Connected");
+  if (cached.conn) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    if (!process.env.MONGO_URL) {
+      throw new Error("❌ MONGO_URL not found in environment variables");
+    }
+
+    cached.promise = mongoose
+      .connect(process.env.MONGO_URL, {
+        bufferCommands: false
+      })
+      .then((mongoose) => {
+        console.log("✅ MongoDB Connected");
+        return mongoose;
+      });
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
 }
 
 /* ---------- ROUTES ---------- */
 const cargoRoutes = require("../routes/Cargo");
 
 app.use(async (req, res, next) => {
-  await connectDB();
-  next();
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("❌ MongoDB connection failed:", err);
+    res.status(500).json({ error: "Database connection failed" });
+  }
 });
 
 app.use("/api/dashboard", cargoRoutes);
 app.use("/api/analytics", cargoRoutes);
 app.use("/api/cargo-prediction", cargoRoutes);
 
-/* ---------- EXPORT HANDLER ---------- */
+/* ---------- HEALTH CHECK ---------- */
+app.get("/health", (_, res) => {
+  res.json({ ok: true });
+});
+
+/* ---------- EXPORT ---------- */
 module.exports = app;
