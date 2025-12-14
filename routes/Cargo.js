@@ -252,13 +252,60 @@ router.get("/daily-pattern", async (req, res) => {
 // });
 
 
+// router.get("/yoy-full", async (req, res) => {
+//   try {
+//     const startYear = Number(req.query.startYear);
+//     const endYear = Number(req.query.endYear);
+
+//     if (!startYear || !endYear) {
+//       return res.json({ years: [] });
+//     }
+
+//     const raw = await CargoRecord.aggregate([
+//       { $addFields: { yearNum: { $toInt: "$Year Text" } } },
+//       { $match: { yearNum: { $gte: startYear, $lte: endYear } } },
+//       {
+//         $group: {
+//           _id: { year: "$yearNum", month: "$Month Short Text" },
+//           total: SAFE_WEIGHT
+//         }
+//       }
+//     ]);
+
+//     const years = [];
+//     for (let y = startYear; y <= endYear; y++) years.push(y);
+
+//     res.json({
+//       years: years.map(y => ({
+//         year: y,
+//         values: MONTHS.map(m =>
+//           raw
+//             .filter(r => r._id.year === y && r._id.month === m)
+//             .reduce((a, b) => a + b.total, 0)
+//         )
+//       }))
+//     });
+//   } catch {
+//     res.json({ years: [] });
+//   }
+// });
+
+
 router.get("/yoy-full", async (req, res) => {
   try {
-    const startYear = Number(req.query.startYear);
-    const endYear = Number(req.query.endYear);
+    let startYear = Number(req.query.startYear);
+    let endYear = Number(req.query.endYear);
 
+    // ✅ DEFAULT FALLBACK
     if (!startYear || !endYear) {
-      return res.json({ years: [] });
+      const latest = await CargoRecord.findOne()
+        .sort({ "Year Text": -1 })
+        .select("Year Text")
+        .lean();
+
+      if (!latest) return res.json({ years: [] });
+
+      startYear = endYear = Number(latest["Year Text"]);
     }
 
     const raw = await CargoRecord.aggregate([
@@ -285,10 +332,12 @@ router.get("/yoy-full", async (req, res) => {
         )
       }))
     });
-  } catch {
+  } catch (e) {
+    console.error("YOY ERROR", e);
     res.json({ years: [] });
   }
 });
+
 
 /* ================= MARKET SHARE ================= */
 router.post("/marketShare/station", async (req, res) => {
