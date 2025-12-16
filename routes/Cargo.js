@@ -108,60 +108,60 @@ router.get("/heatmap", async (_, res) => {
 
 
 
-router.get("/daily-pattern", async (req, res) => {
-  try {
-    const raw = await CargoRecord.aggregate([
-      {
-        $addFields: {
-          parsedDate: {
-            $cond: [
-              { $and: [
-                { $ne: ["$Accept Flight Date", null] },
-                { $ne: ["$Accept Flight Date", ""] }
-              ]},
-              {
-                $dateFromString: {
-                  dateString: "$Accept Flight Date",
-                  onError: null,
-                  onNull: null
-                }
-              },
-              null
-            ]
-          }
-        }
-      },
-      { $match: { parsedDate: { $ne: null } } },
-      {
-        $group: {
-          _id: { $dayOfWeek: "$parsedDate" },
-          total: {
-            $sum: {
-              $convert: {
-                input: { $toString: "$Weight KG" },
-                to: "double",
-                onError: 0,
-                onNull: 0
-              }
-            }
-          }
-        }
-      }
-    ]);
+// router.get("/daily-pattern", async (req, res) => {
+//   try {
+//     const raw = await CargoRecord.aggregate([
+//       {
+//         $addFields: {
+//           parsedDate: {
+//             $cond: [
+//               { $and: [
+//                 { $ne: ["$Accept Flight Date", null] },
+//                 { $ne: ["$Accept Flight Date", ""] }
+//               ]},
+//               {
+//                 $dateFromString: {
+//                   dateString: "$Accept Flight Date",
+//                   onError: null,
+//                   onNull: null
+//                 }
+//               },
+//               null
+//             ]
+//           }
+//         }
+//       },
+//       { $match: { parsedDate: { $ne: null } } },
+//       {
+//         $group: {
+//           _id: { $dayOfWeek: "$parsedDate" },
+//           total: {
+//             $sum: {
+//               $convert: {
+//                 input: { $toString: "$Weight KG" },
+//                 to: "double",
+//                 onError: 0,
+//                 onNull: 0
+//               }
+//             }
+//           }
+//         }
+//       }
+//     ]);
 
-    const labels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    const values = Array(7).fill(0);
+//     const labels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+//     const values = Array(7).fill(0);
 
-    raw.forEach(r => {
-      if (r._id) values[r._id - 1] = +(r.total / 1000).toFixed(2);
-    });
+//     raw.forEach(r => {
+//       if (r._id) values[r._id - 1] = +(r.total / 1000).toFixed(2);
+//     });
 
-    res.json({ labels, values });
-  } catch (e) {
-    console.error("DAILY PATTERN ERROR", e);
-    res.json({ labels: [], values: [] }); 
-  }
-});
+//     res.json({ labels, values });
+//   } catch (e) {
+//     console.error("DAILY PATTERN ERROR", e);
+//     res.json({ labels: [], values: [] }); 
+//   }
+// });
 
 
 

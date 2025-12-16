@@ -1,23 +1,8 @@
-require("dotenv").config({ path: "../.env" });
-
 const express = require("express");
 const cors = require("cors");
-
 const app = express();
 
-app.use(express.json());
-
-// app.use(
-//   cors({
-//     origin: [
-//       "http://localhost:50693",
-//       "http://localhost:4200",
-//       "https://cargo-analytics-2e37b.web.app",
-//       "https://cargo-analytics-2e37b.firebaseapp.com"
-//     ],
-//     credentials: true
-//   })
-// );
+// ✅ ALLOWED ORIGINS
 const allowedOrigins = [
   "http://localhost:4200",
   "http://localhost:50693",
@@ -25,33 +10,37 @@ const allowedOrigins = [
   "https://cargo-analytics-2e37b.firebaseapp.com"
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // allow Postman / server-side calls
-      if (!origin) return callback(null, true);
+// ✅ CORS CONFIG
+app.use(cors({
+  origin: function (origin, callback) {
+    // allow server-to-server & Postman
+    if (!origin) return callback(null, true);
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("CORS NOT ALLOWED"), false);
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
 
-      return callback(new Error("Not allowed by CORS: " + origin));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-  })
-);
+// ✅ REQUIRED FOR PREFLIGHT
+app.options("*", cors());
 
-// ✅ FIXED PATH + NAME
-const predictionProxy = require("../routes/predictionProxy");
-app.use("/api/cargo-prediction", predictionProxy);
+// ✅ BODY PARSERS (MUST BE AFTER CORS)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.get("/health", (_, res) => {
-  res.json({ ok: true });
+// ✅ ROUTES
+const dashboardRoutes = require("../routes/Cargo");
+app.use("/api/dashboard", dashboardRoutes);
+
+// ✅ HEALTH CHECK
+app.get("/", (_, res) => {
+  res.show = "Cargo Backend Running";
 });
 
-const PORT = 4000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+module.exports = app;
