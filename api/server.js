@@ -3,7 +3,7 @@ const cors = require("cors");
 
 const app = express();
 
-/* ------------------ Middleware ------------------ */
+/* ---------- MIDDLEWARE ---------- */
 app.use(express.json());
 
 const allowedOrigins = [
@@ -15,27 +15,23 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: function (origin, callback) {
+    origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error("Not allowed by CORS"));
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS blocked"));
     },
     credentials: true
   })
 );
 
-/* ------------------ ROUTES ------------------ */
+/* ---------- ROUTES ---------- */
 
-// ✅ HEALTH CHECK
+// Health check
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
-// ✅ DASHBOARD ROUTES (THIS WAS MISSING)
+// DASHBOARD ROUTES (THIS WAS MISSING ❗)
 app.post("/api/dashboard/marketShare/station", (req, res) => {
   res.json({ data: [] });
 });
@@ -45,7 +41,7 @@ app.post("/api/dashboard/marketShare/cargoType", (req, res) => {
 });
 
 app.get("/api/dashboard/summary", (req, res) => {
-  res.json({ total: 0 });
+  res.json({ summary: {} });
 });
 
 app.get("/api/dashboard/yoy-full", (req, res) => {
@@ -53,5 +49,6 @@ app.get("/api/dashboard/yoy-full", (req, res) => {
   res.json({ startYear, endYear, data: [] });
 });
 
-/* ------------------ EXPORT (NO LISTEN) ------------------ */
+/* ---------- EXPORT ONLY ---------- */
+// 🚫 NO app.listen()
 module.exports = app;
