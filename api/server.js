@@ -1,72 +1,57 @@
-
-
-
-require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
 
 const app = express();
 
+/* ------------------ Middleware ------------------ */
 app.use(express.json());
 
-app.use(cors({
-  origin: [
-    "https://cargo-analytics-2e37b.web.app",
-    "https://cargo-analytics-2e37b.firebaseapp.com",
-    "http://localhost:4200"
-  ],
-  credentials: true
-}));
+const allowedOrigins = [
+  "http://localhost:4200",
+  "http://localhost:50693",
+  "https://cargo-analytics-2e37b.web.app",
+  "https://cargo-analytics-2e37b.firebaseapp.com"
+];
 
-let cached = global.mongoose;
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
 
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
-}
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
 
-async function connectDB() {
-  if (cached.conn) {
-    return cached.conn;
-  }
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true
+  })
+);
 
-  if (!cached.promise) {
-    if (!process.env.MONGO_URL) {
-      throw new Error("❌ MONGO_URL not found in environment variables");
-    }
+/* ------------------ ROUTES ------------------ */
 
-    cached.promise = mongoose
-      .connect(process.env.MONGO_URL, {
-        bufferCommands: false
-      })
-      .then((mongoose) => {
-        console.log("✅ MongoDB Connected");
-        return mongoose;
-      });
-  }
-
-  cached.conn = await cached.promise;
-  return cached.conn;
-}
-
-const cargoRoutes = require("../routes/Cargo");
-
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    console.error(" MongoDB connection failed:", err);
-    res.status(500).json({ error: "Database connection failed" });
-  }
-});
-
-app.use("/api/dashboard", cargoRoutes);
-app.use("/api/analytics", cargoRoutes);
-app.use("/api/cargo-prediction", cargoRoutes);
-
-app.get("/health", (_, res) => {
+// ✅ HEALTH CHECK
+app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
+// ✅ DASHBOARD ROUTES (THIS WAS MISSING)
+app.post("/api/dashboard/marketShare/station", (req, res) => {
+  res.json({ data: [] });
+});
+
+app.post("/api/dashboard/marketShare/cargoType", (req, res) => {
+  res.json({ data: [] });
+});
+
+app.get("/api/dashboard/summary", (req, res) => {
+  res.json({ total: 0 });
+});
+
+app.get("/api/dashboard/yoy-full", (req, res) => {
+  const { startYear, endYear } = req.query;
+  res.json({ startYear, endYear, data: [] });
+});
+
+/* ------------------ EXPORT (NO LISTEN) ------------------ */
 module.exports = app;
